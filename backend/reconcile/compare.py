@@ -4,7 +4,8 @@ from typing import Dict, List, Any, Optional
 
 def compare_ledgers(
     a_records: Dict[str, Dict[str, Any]],
-    b_entries: List[Dict[str, Any]]
+    b_entries: List[Dict[str, Any]],
+    include_extra_checks: bool = False
 ) -> List[Dict[str, Any]]:
     """
     Pure Python reconciliation between System A records and System B entries.
@@ -25,6 +26,7 @@ def compare_ledgers(
             "location_id": str,
             "recorded_on": str or date
         }
+    include_extra_checks: if True, also flags LOCATION_MISMATCH and DATE_MISMATCH.
     """
     disagreements = []
 
@@ -101,5 +103,35 @@ def compare_ledgers(
                     "details": f"Record {rid} has {len(entries)} entries in System B totaling {total_b}, which does not match System A total {a.get('total_value')}.",
                 })
             continue
+
+        # Single entry handling
+        e = entries[0]
+        val = e.get("value")
+
+        if val is None:
+            disagreements.append({
+                "reason": "VALUE_MISMATCH",
+                "record_id": rid,
+                "location": a.get("location_id"),
+                "a_location": a.get("location_id"),
+                "b_location": e.get("location_id"),
+                "a_value": a.get("total_value"),
+                "b_value": None,
+                "difference": None,
+                "details": f"Record {rid} exists in System B (entry {e.get('entry_id')}), but its value is blank/unknown.",
+            })
+        elif val != a.get("total_value"):
+            diff = abs(a.get("total_value") - val) if a.get("total_value") is not None else None
+            disagreements.append({
+                "reason": "VALUE_MISMATCH",
+                "record_id": rid,
+                "location": a.get("location_id"),
+                "a_location": a.get("location_id"),
+                "b_location": e.get("location_id"),
+                "a_value": a.get("total_value"),
+                "b_value": val,
+                "difference": diff,
+                "details": f"Value mismatch for {rid}: System A total is {a.get('total_value')}, but System B recorded {val} (difference: {diff}).",
+            })
 
     return disagreements

@@ -104,7 +104,60 @@ def test_split_that_sums_is_not_an_error():
         },
     ]
     res = compare_ledgers(a, b)
-    # A split that sums to A's total must produce NO disagreements
     assert res == []
 
 
+def test_value_mismatch():
+    a = {
+        "REC-1003": {
+            "record_id": "REC-1003",
+            "total_value": Decimal("121388.01"),
+            "location_id": "LOC-101",
+            "event_date": "2026-03-12",
+            "state": "CONFIRMED",
+        }
+    }
+    b = [
+        {
+            "entry_id": "ENT/2026/4003",
+            "record_ref": "REC-1003",
+            "value": Decimal("94834.38"),
+            "location_id": "LOC-101",
+            "recorded_on": "2026-03-12",
+        }
+    ]
+    res = compare_ledgers(a, b)
+    assert len(res) == 1
+    assert res[0]["reason"] == "VALUE_MISMATCH"
+    assert res[0]["record_id"] == "REC-1003"
+    assert res[0]["a_value"] == Decimal("121388.01")
+    assert res[0]["b_value"] == Decimal("94834.38")
+    assert res[0]["difference"] == Decimal("26553.63")
+
+
+def test_blank_value_is_flagged_not_zero():
+    a = {
+        "REC-1050": {
+            "record_id": "REC-1050",
+            "total_value": Decimal("160405.85"),
+            "location_id": "LOC-103",
+            "event_date": "2026-03-25",
+            "state": "CONFIRMED",
+        }
+    }
+    b = [
+        {
+            "entry_id": "ENT/2026/4050",
+            "record_ref": "REC-1050",
+            "value": None,  # Stored as None (not Decimal("0"))
+            "location_id": "LOC-103",
+            "recorded_on": "2026-03-25",
+        }
+    ]
+    res = compare_ledgers(a, b)
+    assert len(res) == 1
+    assert res[0]["reason"] == "VALUE_MISMATCH"
+    assert res[0]["record_id"] == "REC-1050"
+    assert res[0]["a_value"] == Decimal("160405.85")
+    assert res[0]["b_value"] is None
+    assert res[0]["difference"] is None
