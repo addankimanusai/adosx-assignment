@@ -35,7 +35,23 @@ def compare_ledgers(
         if ref:
             b_by_ref.setdefault(ref, []).append(entry)
 
-    # 1. MISSING_IN_B: Record exists in System A but has no System B entries
+    # 1. ORPHAN_IN_B: Entry exists in System B with reference not in System A
+    for ref, entries in b_by_ref.items():
+        if ref not in a_records:
+            for e in entries:
+                disagreements.append({
+                    "reason": "ORPHAN_IN_B",
+                    "record_id": ref,
+                    "location": e.get("location_id"),
+                    "a_location": None,
+                    "b_location": e.get("location_id"),
+                    "a_value": None,
+                    "b_value": e.get("value"),
+                    "difference": None,
+                    "details": f"Entry {e.get('entry_id')} references '{ref}' which does not exist in System A.",
+                })
+
+    # 2. MISSING_IN_B: Record exists in System A but has no System B entries
     for rid, a in a_records.items():
         entries = b_by_ref.get(rid, [])
         if not entries:
