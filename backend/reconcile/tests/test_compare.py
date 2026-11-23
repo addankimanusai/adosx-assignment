@@ -41,3 +41,70 @@ def test_orphan_in_b():
     assert res[0]["a_value"] is None
     assert res[0]["b_value"] == Decimal("45000.00")
 
+
+def test_duplicate_in_b():
+    a = {
+        "REC-1042": {
+            "record_id": "REC-1042",
+            "total_value": Decimal("112837.06"),
+            "location_id": "LOC-101",
+            "event_date": "2026-03-20",
+            "state": "CONFIRMED",
+        }
+    }
+    b = [
+        {
+            "entry_id": "ENT/2026/4042",
+            "record_ref": "REC-1042",
+            "value": Decimal("112837.06"),
+            "location_id": "LOC-101",
+            "recorded_on": "2026-03-20",
+        },
+        {
+            "entry_id": "ENT/2026/4043",
+            "record_ref": "REC-1042",
+            "value": Decimal("112837.06"),
+            "location_id": "LOC-101",
+            "recorded_on": "2026-03-20",
+        },
+    ]
+    res = compare_ledgers(a, b)
+    assert len(res) == 1
+    assert res[0]["reason"] == "DUPLICATE_IN_B"
+    assert res[0]["record_id"] == "REC-1042"
+    assert res[0]["a_value"] == Decimal("112837.06")
+    assert res[0]["b_value"] == Decimal("225674.12")
+    assert res[0]["difference"] == Decimal("112837.06")
+
+
+def test_split_that_sums_is_not_an_error():
+    a = {
+        "REC-1055": {
+            "record_id": "REC-1055",
+            "total_value": Decimal("179877.32"),
+            "location_id": "LOC-103",
+            "event_date": "2026-03-22",
+            "state": "CONFIRMED",
+        }
+    }
+    b = [
+        {
+            "entry_id": "ENT/2026/4055",
+            "record_ref": "REC-1055",
+            "value": Decimal("71950.93"),
+            "location_id": "LOC-103",
+            "recorded_on": "2026-03-22",
+        },
+        {
+            "entry_id": "ENT/2026/4056",
+            "record_ref": "REC-1055",
+            "value": Decimal("107926.39"),
+            "location_id": "LOC-103",
+            "recorded_on": "2026-03-22",
+        },
+    ]
+    res = compare_ledgers(a, b)
+    # A split that sums to A's total must produce NO disagreements
+    assert res == []
+
+
