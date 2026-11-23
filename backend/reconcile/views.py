@@ -53,63 +53,54 @@ class DisagreementsView(APIView):
             for r in a_records_qs
         }
 
-        # 3. Fetch System B entries relevant to this tenant:
-        # Entries that are either at tenant locations (including orphans) OR match tenant A records
-        tenant_a_record_ids = set(a_records.keys())
-        b_entries_qs = SystemBEntry.objects.filter(
-            location_id__in=tenant_locations
-        ) | SystemBEntry.objects.filter(
-            record_ref__in=tenant_a_record_ids
-        )
-        b_entries_qs = b_entries_qs.distinct()
+        # 3. Fetch System B entries with strict tenant attribution:
+        # A B entry belongs to the tenant that owns the corresponding System A record.
+        # If the B entry is an orphan (does not exist anywhere in System A), ownership is
+        # determined by the B entry's own location.
+        all_a_record_owners = dict(SystemARecord.objects.values_list("record_id", "location__org_id"))
+        all_locations = {loc.location_id: loc.org_id for loc in Location.objects.all()}
 
-        b_entries = [
-            {
-                "entry_id": b.entry_id,
-                "record_ref": b.record_ref,
-                "value": b.value,
-                "location_id": b.location_id,
-                "recorded_on": b.recorded_on,
-            }
-            for b in b_entries_qs
-        ]
+        b_entries_qs = SystemBEntry.objects.select_related("location").all()
+        b_entries = []
+        for b in b_entries_qs:
+            a_owner = all_a_record_owners.get(b.record_ref)
+            if a_owner:
+                if a_owner == org:
+                    b_entries.append({
+                        "entry_id": b.entry_id,
+                        "record_ref": b.record_ref,
+                        "value": b.value,
+                        "location_id": b.location_id,
+                        "recorded_on": b.recorded_on,
+                    })
+            else:
+                # True orphan: attributed by B's own location
+                if b.location_id in tenant_locations:
+                    b_entries.append({
+                        "entry_id": b.entry_id,
+                        "record_ref": b.record_ref,
+                        "value": b.value,
+                        "location_id": b.location_id,
+                        "recorded_on": b.recorded_on,
+                    })
 
         # 4. Run comparison engine
         raw_disagreements = compare_ledgers(a_records, b_entries, include_extra_checks=True)
 
         # 5. Sanitize and redact cross-tenant references (The Trap Row defense)
-        all_locations = {loc.location_id: loc.org_id for loc in Location.objects.all()}
         sanitized: List[Dict[str, Any]] = []
 
         for d in raw_disagreements:
-            # Check if this item belongs to this org
-            item_a_loc = d.get("a_location")
-            item_b_loc = d.get("b_location")
-
-            # Determine ownership:
-            # If A record exists, A's location defines tenant ownership.
-            # If orphan (no A record), B's location defines tenant ownership.
-            item_org = None
-            if item_a_loc:
-                item_org = all_locations.get(item_a_loc)
-            elif item_b_loc:
-                item_org = all_locations.get(item_b_loc)
-
-            # Strict tenant boundary: only include if owned by queried tenant
-            if item_org != org:
-                continue
-
-            # Redact cross-tenant location if B recorded an external branch
             loc_display = d.get("location")
             b_loc_display = d.get("b_location")
             details = d.get("details", "")
 
+            # If System B recorded at an external org branch, redact it to prevent data leakage
             if b_loc_display and all_locations.get(b_loc_display) != org:
                 b_loc_display = "[REDACTED - External Branch]"
                 if d.get("reason") == "LOCATION_MISMATCH":
-                    details = f"Location mismatch for {d.get('record_id')}: System A recorded at {item_a_loc}, but System B recorded at an external organization branch."
+                    details = f"Location mismatch for {d.get('record_id')}: System A recorded at {d.get('a_location')}, but System B recorded at an external organization branch."
 
-            # Format decimals for clean JSON serialization
             a_val = d.get("a_value")
             b_val = d.get("b_value")
             diff = d.get("difference")
@@ -118,7 +109,7 @@ class DisagreementsView(APIView):
                 "reason": d.get("reason"),
                 "record_id": d.get("record_id"),
                 "location": loc_display,
-                "a_location": item_a_loc,
+                "a_location": d.get("a_location"),
                 "b_location": b_loc_display,
                 "a_value": str(a_val) if a_val is not None else None,
                 "b_value": str(b_val) if b_val is not None else None,
@@ -139,7 +130,6 @@ class DisagreementsView(APIView):
 
             def get_sort_value(item):
                 if sort_key == "value":
-                    # Sort primarily by a_value or b_value
                     val = item["a_value"] or item["b_value"]
                     return Decimal(val) if val is not None else Decimal("-Infinity") if not reverse else Decimal("Infinity")
                 elif sort_key == "difference":
