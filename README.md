@@ -4,6 +4,29 @@ A full-stack multi-tenant financial reconciliation system built with **Django RE
 
 ---
 
+## Live Cloud Deployment (1-Click Automated)
+
+### Option A: 1-Click Deploy on Render (Both Backend & Frontend)
+This repository includes a `render.yaml` blueprint. You can deploy both the Django API and React Frontend with a single click:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/addankimanusai/adosx-assignment)
+
+1. Click the **Deploy to Render** button above.
+2. Sign in with GitHub.
+3. Render automatically reads `render.yaml` and spins up:
+   - **`dealeros-backend`**: Auto-runs migrations, losslessly imports the CSVs, and runs Gunicorn WSGI.
+   - **`dealeros-frontend`**: Installs npm dependencies, builds Vite React, and serves the static UI.
+
+---
+
+### Option B: Deploy Frontend to Vercel
+1. Import `https://github.com/addankimanusai/adosx-assignment` on [Vercel](https://vercel.com).
+2. Set **Root Directory** to `frontend`.
+3. Add environment variable `VITE_API_BASE` pointing to your deployed backend URL.
+4. Click **Deploy**.
+
+---
+
 ## How to Run (Step-by-Step From a Clean Clone)
 
 ### Prerequisites
