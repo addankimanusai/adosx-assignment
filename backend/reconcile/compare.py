@@ -5,7 +5,7 @@ from typing import Dict, List, Any, Optional
 def compare_ledgers(
     a_records: Dict[str, Dict[str, Any]],
     b_entries: List[Dict[str, Any]],
-    include_extra_checks: bool = False
+    include_extra_checks: bool = True
 ) -> List[Dict[str, Any]]:
     """
     Pure Python reconciliation between System A records and System B entries.
@@ -26,7 +26,7 @@ def compare_ledgers(
             "location_id": str,
             "recorded_on": str or date
         }
-    include_extra_checks: if True, also flags LOCATION_MISMATCH and DATE_MISMATCH.
+    include_extra_checks: if True, also checks LOCATION_MISMATCH, DATE_MISMATCH, and VOIDED status.
     """
     disagreements = []
 
@@ -133,5 +133,35 @@ def compare_ledgers(
                 "difference": diff,
                 "details": f"Value mismatch for {rid}: System A total is {a.get('total_value')}, but System B recorded {val} (difference: {diff}).",
             })
+
+        # Extra domain checks: Location and Date mismatches
+        if include_extra_checks:
+            if e.get("location_id") and a.get("location_id") and e.get("location_id") != a.get("location_id"):
+                disagreements.append({
+                    "reason": "LOCATION_MISMATCH",
+                    "record_id": rid,
+                    "location": a.get("location_id"),
+                    "a_location": a.get("location_id"),
+                    "b_location": e.get("location_id"),
+                    "a_value": a.get("total_value"),
+                    "b_value": val,
+                    "difference": None,
+                    "details": f"Location mismatch for {rid}: System A recorded at {a.get('location_id')}, but System B recorded at {e.get('location_id')}.",
+                })
+
+            a_date = str(a.get("event_date") or "")
+            b_date = str(e.get("recorded_on") or "")
+            if a_date and b_date and a_date != b_date:
+                disagreements.append({
+                    "reason": "DATE_MISMATCH",
+                    "record_id": rid,
+                    "location": a.get("location_id"),
+                    "a_location": a.get("location_id"),
+                    "b_location": e.get("location_id"),
+                    "a_value": a.get("total_value"),
+                    "b_value": val,
+                    "difference": None,
+                    "details": f"Date mismatch for {rid}: System A event date is {a_date}, but System B recorded on {b_date}.",
+                })
 
     return disagreements

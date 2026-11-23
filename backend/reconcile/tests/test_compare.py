@@ -1,6 +1,7 @@
 from decimal import Decimal
 import pytest
 from reconcile.compare import compare_ledgers
+from reconcile.importer import normalize_ref
 
 
 def test_missing_in_b():
@@ -149,7 +150,7 @@ def test_blank_value_is_flagged_not_zero():
         {
             "entry_id": "ENT/2026/4050",
             "record_ref": "REC-1050",
-            "value": None,  # Stored as None (not Decimal("0"))
+            "value": None,
             "location_id": "LOC-103",
             "recorded_on": "2026-03-25",
         }
@@ -161,3 +162,103 @@ def test_blank_value_is_flagged_not_zero():
     assert res[0]["a_value"] == Decimal("160405.85")
     assert res[0]["b_value"] is None
     assert res[0]["difference"] is None
+
+
+def test_location_mismatch():
+    a = {
+        "REC-1077": {
+            "record_id": "REC-1077",
+            "total_value": Decimal("1000.00"),
+            "location_id": "LOC-102",
+            "event_date": "2026-03-20",
+            "state": "CONFIRMED",
+        }
+    }
+    b = [
+        {
+            "entry_id": "ENT/2026/4077",
+            "record_ref": "REC-1077",
+            "value": Decimal("1000.00"),
+            "location_id": "LOC-201",
+            "recorded_on": "2026-03-20",
+        }
+    ]
+    res = compare_ledgers(a, b, include_extra_checks=True)
+    assert len(res) == 1
+    assert res[0]["reason"] == "LOCATION_MISMATCH"
+    assert res[0]["a_location"] == "LOC-102"
+    assert res[0]["b_location"] == "LOC-201"
+
+
+def test_date_mismatch():
+    a = {
+        "REC-1009": {
+            "record_id": "REC-1009",
+            "total_value": Decimal("500.00"),
+            "location_id": "LOC-101",
+            "event_date": "2026-03-31",
+            "state": "CONFIRMED",
+        }
+    }
+    b = [
+        {
+            "entry_id": "ENT/2026/4009",
+            "record_ref": "REC-1009",
+            "value": Decimal("500.00"),
+            "location_id": "LOC-101",
+            "recorded_on": "2026-04-02",
+        }
+    ]
+    res = compare_ledgers(a, b, include_extra_checks=True)
+    assert len(res) == 1
+    assert res[0]["reason"] == "DATE_MISMATCH"
+    assert res[0]["record_id"] == "REC-1009"
+
+
+def test_clean_matching_row_produces_no_disagreement():
+    a = {
+        "REC-1001": {
+            "record_id": "REC-1001",
+            "total_value": Decimal("50000.00"),
+            "location_id": "LOC-101",
+            "event_date": "2026-03-10",
+            "state": "CONFIRMED",
+        }
+    }
+    b = [
+        {
+            "entry_id": "ENT/2026/4001",
+            "record_ref": "REC-1001",
+            "value": Decimal("50000.00"),
+            "location_id": "LOC-101",
+            "recorded_on": "2026-03-10",
+        }
+    ]
+    res = compare_ledgers(a, b, include_extra_checks=True)
+    assert res == []
+
+
+def test_messy_references_normalized_match_cleanly():
+    raw_refs = ["rec1034", " REC - 1070 ", "1112"]
+    for raw in raw_refs:
+        cleaned = normalize_ref(raw)
+        a = {
+            cleaned: {
+                "record_id": cleaned,
+                "total_value": Decimal("25000.00"),
+                "location_id": "LOC-101",
+                "event_date": "2026-03-15",
+                "state": "CONFIRMED",
+            }
+        }
+        b = [
+            {
+                "entry_id": f"ENT-{cleaned}",
+                "record_ref": cleaned,
+                "value": Decimal("25000.00"),
+                "location_id": "LOC-101",
+                "recorded_on": "2026-03-15",
+            }
+        ]
+        res = compare_ledgers(a, b, include_extra_checks=True)
+        assert res == []
