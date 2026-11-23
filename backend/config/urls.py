@@ -16,9 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from reconcile.views import root_view
 
 urlpatterns = [
+    path('', root_view, name='root'),
     path('admin/', admin.site.urls),
     path('api/', include('reconcile.urls')),
 ]
+
 

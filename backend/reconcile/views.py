@@ -1,12 +1,55 @@
 from decimal import Decimal
 from typing import Dict, Any, List
 
+from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
 from reconcile.models import Location, SystemARecord, SystemBEntry
 from reconcile.compare import compare_ledgers
+
+
+def root_view(request):
+    """
+    Friendly landing page at http://127.0.0.1:8000/ directing to the frontend UI
+    and providing API links.
+    """
+    html = """<!DOCTYPE html>
+<html>
+<head>
+    <title>DealerOS Ledger Reconciliation</title>
+    <meta http-equiv="refresh" content="2; url=http://localhost:5173/">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; color: #1e293b; padding: 3rem; text-align: center; }
+        .card { max-width: 600px; margin: 0 auto; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: #0f172a; }
+        p { color: #64748b; margin-bottom: 1.5rem; font-size: 0.95rem; }
+        .btn { display: inline-block; background: #2563eb; color: white; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; font-weight: 600; margin-bottom: 1rem; }
+        .btn:hover { background: #1d4ed8; }
+        .links { margin-top: 1.5rem; font-size: 0.875rem; text-align: left; background: #f1f5f9; padding: 1rem; border-radius: 6px; }
+        .links ul { margin: 0.5rem 0 0 1.25rem; padding: 0; }
+        .links li { margin-bottom: 0.25rem; }
+        a { color: #2563eb; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>DealerOS Reconciliation System</h1>
+        <p>The Django backend is running. Redirecting you to the React frontend UI...</p>
+        <a class="btn" href="http://localhost:5173/">Open React Frontend (http://localhost:5173)</a>
+        <div class="links">
+            <strong>Backend API Endpoints:</strong>
+            <ul>
+                <li><a href="/api/orgs/">/api/orgs/</a> - List Organizations</li>
+                <li><a href="/api/disagreements/?org=ORG-A">/api/disagreements/?org=ORG-A</a> - Disagreements for ORG-A</li>
+                <li><a href="/api/disagreements/?org=ORG-B">/api/disagreements/?org=ORG-B</a> - Disagreements for ORG-B</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>"""
+    return HttpResponse(html)
 
 
 class OrgListView(APIView):
